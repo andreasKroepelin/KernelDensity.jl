@@ -3,3 +3,13 @@ const BivariateKDE{Rx <: AbstractRange, Ry <: AbstractRange} =
 
 
 const BivariateDistribution = Union{Tuple{UnivariateDistribution, UnivariateDistribution}}
+
+function Base.getproperty(k::BivariateKDE, s::Symbol)
+    if s === :x
+        k.ranges[1]
+    elseif s === :y
+        k.ranges[2]
+    else
+        getfield(k, s)
+    end
+end
