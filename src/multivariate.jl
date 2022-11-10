@@ -86,7 +86,8 @@ function interpolate_in_hypercube!_impl(::Val{N}) where N
     end
     
     # `low_idcs` stores the lower indices and `high_idcs` stores the higher
-    # indices and this function connects that to the 0/1-representation in `sides`.
+    # indices and this function connects that to the 0/1-representation in
+    # `sides_of_vertices`.
     side_to_symbol(side) = side == 0 ? :low_idcs : :high_idcs
     
     # `indices_of_vertices` stores the array of indices that will be used to
@@ -124,9 +125,9 @@ function interpolate_in_hypercube!_impl(::Val{N}) where N
     
     # Using this preprocessing, we can now create accesses to `grid`.
     updates = [
-        :(grid[$indices...] += *($sign_correction, weight, $factors...))
+        :(@inbounds grid[$(indices...)] += *($sign_correction, weight, $(factors...)))
         for (indices, factors, sign_correction)
-        in zip(indices_of_vertices, factors_of_vertices, sign_correcions)
+        in zip(indices_of_vertices, factors_of_vertices, sign_corrections)
     ]
     
     code = quote end
@@ -173,7 +174,7 @@ function tabulate(
     MultivariateKDE(midpoints, grid)
 end
 
-# convolution with product distribution of N univariates distributions
+# convolution with product distribution of N univariate distributions
 function conv(k::MultivariateKDE{N, R}, dists::NTuple{N, UnivariateDistribution}) where {N, R}
     # Transform to Fourier basis
     ft = rfft(k.density)
@@ -181,16 +182,17 @@ function conv(k::MultivariateKDE{N, R}, dists::NTuple{N, UnivariateDistribution}
     # Convolve fft with characteristic function of kernel
     cs = -twoπ ./ (maximum.(k.ranges) .- minimum.(k.ranges))
     for idx in CartesianIndices(ft)
-        idx_tpl = Tuple(idx)
-        ft[idx] *= prod(cf.(dists, idx_tpl .* cs))
+        pos = Tuple(idx) .- 1
+        pos = min.(pos, size(k.density) .- pos)
+        ft[idx] *= prod(cf.(dists, pos .* cs))
     end
 
     # Invert the Fourier transform to get the KDE
-    dens = irfft(ft, size(k.density, 1))
+    density = irfft(ft, size(k.density, 1))
 
-    dens .= max.(0., dens)
+    density .= max.(0., density)
 
-    MultivariateKDE(k.ranges, dens)
+    MultivariateKDE(k.ranges, density)
 end
 
 default_weights(data::NTuple{N, RealVector}) where N = UniformWeights(length(data[1]))
