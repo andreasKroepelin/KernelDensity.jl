@@ -2,7 +2,7 @@ const BivariateKDE{Rx <: AbstractRange, Ry <: AbstractRange} =
     MultivariateKDE{2, Tuple{Rx, Ry}}
 
 
-const BivariateDistribution = Union{Tuple{UnivariateDistribution, UnivariateDistribution}}
+const BivariateDistribution = NTuple{2, UnivariateDistribution}
 
 function Base.getproperty(k::BivariateKDE, s::Symbol)
     if s === :x
