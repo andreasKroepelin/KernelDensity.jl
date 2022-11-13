@@ -97,9 +97,11 @@ intermediate values can be interpolated using the
 [Interpolations.jl](https://github.com/tlycken/Interpolations.jl) package via the `pdf` method
 (extended from Distributions.jl).
 
-```
+```julia
 pdf(k::UnivariateKDE, x)
 pdf(k::BivariateKDE, x, y)
+pdf(k::TrivariateKDE, x, y, z)
+pdf(k::MultivariateKDE, x...)
 ```
 
 where `x` and `y` are real numbers or arrays.
@@ -107,7 +109,7 @@ where `x` and `y` are real numbers or arrays.
 If you are making multiple calls to `pdf`, it will be more efficient to
 construct an intermediate `InterpKDE` to store the interpolation structure:
 
-```
+```julia
 ik = InterpKDE(k)
 pdf(ik, x)
 ```
