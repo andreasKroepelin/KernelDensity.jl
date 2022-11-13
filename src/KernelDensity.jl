@@ -16,6 +16,7 @@ abstract type AbstractKDE end
 include("univariate.jl")
 include("multivariate.jl")
 include("bivariate.jl")
+include("trivariate.jl")
 include("interp.jl")
 
 end # module
