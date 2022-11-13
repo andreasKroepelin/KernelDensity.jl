@@ -104,7 +104,7 @@ pdf(k::TrivariateKDE, x, y, z)
 pdf(k::MultivariateKDE, x...)
 ```
 
-where `x` and `y` are real numbers or arrays.
+where `x`, `y`, and `z` are real numbers or arrays.
 
 If you are making multiple calls to `pdf`, it will be more efficient to
 construct an intermediate `InterpKDE` to store the interpolation structure:
