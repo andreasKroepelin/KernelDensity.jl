@@ -61,6 +61,12 @@ for X in ([0.0], [0.0,0.0], [0.0,0.5], [-0.5:0.1:0.5;])
     end
 end
 
+for d in 1:5
+    data = zeros(10, d)
+    k = kde(data, npoints = ntuple(_ -> 16, d))
+    @test k isa (MultivariateKDE{d, R} where R)
+end
+
 k11 = kde([0.0 0.0 0.0; 1.0 1.0 1.0], (r, r, r), bandwidth = (1, 1, 1), weights = [0, 1])
 k12 = kde([1.0 1.0 1.0], (r, r, r), bandwidth = (1, 1, 1))
 @test k11.density ≈ k12.density
