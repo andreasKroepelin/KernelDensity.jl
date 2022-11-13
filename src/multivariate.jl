@@ -63,82 +63,45 @@ end
 end
 
 function interpolate_in_hypercube!_impl(::Val{N}) where N
-
-    # We want to interpolate the data point at `coords` on the hypercube around it,
-    # defined by the grid spanned by `midpoints`.
-    # `high_idcs` and `low_idcs` tell us where in `midpoints` we have to look to
-    # find the vertices of that hypercube, of which there are 2^N.
-    # `sides_of_vertices` will store 2^N arrays of zeros and ones of length N,
-    # each representing one vertex.
-    # A zero means that the vertex has the lower of the two possible coordinates
-    # in that specific dimension, a one means it's the larger one.
-    # The concrete process of constructing `slides_of_vertices` makes sure that
-    # the first entry varies the slowest and the last entry varies the fastest.
-    # This leads to the proper "column"-major iteration order later.
-    sides_of_vertices = [[]]
-    for _ in 1:N
-        new_sides_of_vertices = []
-        for sides in sides_of_vertices
-            push!(new_sides_of_vertices, vcat(sides, [0]))
-            push!(new_sides_of_vertices, vcat(sides, [1]))
-        end
-        sides_of_vertices = new_sides_of_vertices
-    end
-    
-    # `low_idcs` stores the lower indices and `high_idcs` stores the higher
-    # indices and this function connects that to the 0/1-representation in
-    # `sides_of_vertices`.
+    # We need to distribute the `weight` of one data point to all vertices of
+    # the hypercube that surrounds it in the grid.
+    # These vertices can be described using all N-bit bitstrings.
+    # A zero bit then means that we are looking at the lower index in a specific
+    # dimension and a one means we look at the higher one.
     side_to_symbol(side) = side == 0 ? :low_idcs : :high_idcs
-    
-    # `indices_of_vertices` stores the array of indices that will be used to
-    # access a vertex of the hypercube later, for each vertex.
-    indices_of_vertices = [
-        [:($(side_to_symbol(side))[$i]) for (side, i) in zip(sides, 1:N)]
-        for sides in sides_of_vertices
-    ]
-    
-    # `factors_of_vertices` is concerned with interpolation coefficients.
-    # The idea is that the contribution of the data point to a specific vertex
-    # in a specific dimension is proportional to the distance of the data point
-    # to the opposite face of the hypercube in that dimension.
-    # This distance can be obtained as
-    # `midpoints[dimension][other_side[dimension]] - coords[dimension]`.
-    # The pseudo variable `other_side` can be computed simply by `1 - side`,
-    # thanks to the 0/1-representation.
-    # Using all that information we can then construct the factors for interpolation.
-    factors_of_vertices = [
-        [
-            :(midpoints[$i][$(side_to_symbol(1-side))[$i]] - coords[$i])
-            for (side, i) in zip(sides, 1:N)
+    updates = quote end
+    sides = zeros(Int, N)
+
+    for vertex_number in 0 : 2^N - 1
+        # Get the bitstring representation of the vertex.
+        digits!(sides, vertex_number, base = 2)
+        # Reverse it such that we will iterate the last dimension the fastest
+        # to adhere to Julia's "column"-major memory layout of arrays.
+        reverse!(sides)
+
+        indices = [:($(side_to_symbol(side))[$idx]) for (side, idx) in zip(sides, 1:N)]
+
+        # The interpolation coefficients are chosen such that the partial weight
+        # on one vertex is proportional to the distance of the data point to the
+        # opposite vertex for each dimension respectively.
+        factors = [
+            :(midpoints[$idx][$(side_to_symbol(1-side))[$idx]] - coords[$idx])
+            for (side, idx) in zip(sides, 1:N)
         ]
-        for sides in sides_of_vertices
-    ]
-    
-    # When calculating the factors before, we actually used the signed distance
-    # to the opposite side, which is always wrong when the opposite side has the
-    # lower possible coordinate in one dimension.
-    # Therefore, for every side represented by 1, we introduce a multiplicative
-    # error of -1.
-    # By counting the ones for a vertex and raising -1 to that power we can find
-    # a correction forthat error.
-    sign_corrections = (-1) .^ map(sum, sides_of_vertices)
-    
-    # Using this preprocessing, we can now create accesses to `grid`.
-    updates = [
-        :(@inbounds grid[$(indices...)] += *($sign_correction, weight, $(factors...)))
-        for (indices, factors, sign_correction)
-        in zip(indices_of_vertices, factors_of_vertices, sign_corrections)
-    ]
-    
-    code = quote end
-    for update in updates
-        code = quote
-            $code
-            $update
+        # The previous formula is only almost correct.
+        # Whenever we calculate the distance to a vertex with a lower index, we
+        # introduce a multiplicative error of -1.
+        # This is mitigated by the following correction:
+        sign_correction = (-1)^sum(sides)
+
+        updates = quote
+            $updates
+
+            @inbounds grid[$(indices...)] += *($sign_correction, weight, $(factors...))
         end
     end
-    
-    code
+
+    updates
 end
 
 # tabulate data for kde
